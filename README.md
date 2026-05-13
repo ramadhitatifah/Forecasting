@@ -121,7 +121,7 @@ Contoh hasil akhir prediksi:
 | 2025-06-26 | 4322.12 | 4329.51 |
 | 2025-06-30 | 4306.58 | 4324.70 |
 
-## Tools dan Library
+## 🛠️Tools dan Library
 
 Project ini menggunakan beberapa tools dan library berikut:
 
@@ -132,7 +132,7 @@ Project ini menggunakan beberapa tools dan library berikut:
 - Scikit-learn
 - PyTorch
 
-## File Project
+## 📁File Project
 
 Repository ini hanya berisi satu file utama:
 
@@ -143,7 +143,7 @@ Prediksi Nilai Tukar Mata Uang SAR–IDR.ipynb
 File notebook tersebut berisi seluruh proses mulai dari preprocessing, normalisasi data, pembuatan model GRU, training, evaluasi, hingga visualisasi hasil prediksi.
 
 
-## Kesimpulan
+## ✨Kesimpulan
 
 Project ini menunjukkan penerapan model GRU untuk prediksi nilai tukar mata uang SAR terhadap IDR. Berdasarkan hasil evaluasi, model mampu menghasilkan prediksi yang cukup baik dengan nilai MAPE sebesar **0.2970%** pada data uji.
 
