@@ -1,0 +1,608 @@
+---
+title: "Prediksi Nilai Tukar Mata Uang SAR terhadap IDR Menggunakan GRU"
+author: "Nama Kamu"
+date: "`r format(Sys.Date(), '%d %B %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+    theme: cosmo
+    code_folding: show
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.align = "center"
+)
+```
+
+# Ringkasan Project
+
+Project ini bertujuan untuk memprediksi nilai tukar mata uang **Saudi Riyal (SAR)** terhadap **Rupiah Indonesia (IDR)** menggunakan metode **Gated Recurrent Unit (GRU)**. Data yang digunakan merupakan data kurs transaksi dari **Bank Indonesia**, dengan fokus pada kolom **Kurs Beli**.
+
+Model GRU dipilih karena mampu mempelajari pola sekuensial pada data time series, sehingga sesuai untuk kasus prediksi kurs mata uang berdasarkan data historis.
+
+# Latar Belakang
+
+Nilai tukar mata uang bersifat fluktuatif dan dapat berubah mengikuti kondisi ekonomi, pasar keuangan, serta faktor eksternal lainnya. Dalam konteks SAR terhadap IDR, prediksi kurs dapat membantu memahami pola pergerakan historis dan memperkirakan nilai kurs pada periode berikutnya.
+
+Penelitian/project ini menggunakan pendekatan deep learning berbasis GRU untuk mempelajari pola historis kurs beli SAR terhadap IDR.
+
+# Dataset
+
+Dataset yang digunakan berasal dari **Bank Indonesia**. File dataset diasumsikan berada pada folder berikut:
+
+```text
+./data/raw/Kurs Transaksi SAR(jan22-jun25) kurs beli.xlsx
+```
+
+Kolom utama yang digunakan:
+
+- `Tanggal`: tanggal kurs transaksi.
+- `Kurs Beli`: nilai kurs beli SAR terhadap IDR.
+
+> Catatan: jika nama file atau lokasi dataset berbeda, ubah variabel `path_excel` pada bagian konfigurasi.
+
+# Import Library
+
+Dokumen ini menggunakan R Markdown dengan chunk Python melalui `reticulate`. Pastikan package Python berikut sudah tersedia: `pandas`, `numpy`, `matplotlib`, `scikit-learn`, dan `torch`.
+
+```{python import-library}
+import os
+import time
+import random
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+
+import torch
+import torch.nn as nn
+from torch.utils.data import TensorDataset, DataLoader
+from torch.optim import Adam
+
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.metrics import mean_squared_error, mean_absolute_error
+```
+
+# Konfigurasi Awal
+
+```{python konfigurasi-awal}
+# Path dataset
+path_excel = "./data/raw/Kurs Transaksi SAR(jan22-jun25) kurs beli.xlsx"
+
+# Kolom target yang diprediksi
+target_col = "Kurs Beli"
+date_col = "Tanggal"
+
+# Reproducibility
+seed = 42
+random.seed(seed)
+np.random.seed(seed)
+torch.manual_seed(seed)
+if torch.cuda.is_available():
+    torch.cuda.manual_seed_all(seed)
+```
+
+# Load Dataset
+
+```{python load-dataset}
+data = pd.read_excel(path_excel)
+
+print("Dataset Saat Load File:")
+print(data.head())
+
+print("\nInformasi Dataset:")
+print(data.info())
+```
+
+# Statistik Deskriptif
+
+```{python statistik-deskriptif}
+print("Statistik Deskriptif:")
+print(data.describe())
+```
+
+# Preprocessing Data
+
+Tahapan preprocessing yang dilakukan:
+
+1. Mengubah kolom `Tanggal` menjadi tipe datetime.
+2. Mengurutkan data berdasarkan tanggal.
+3. Menggunakan kolom `Kurs Beli` sebagai variabel target.
+4. Membagi data menjadi data latih, validasi, dan uji dengan rasio **80:10:10**.
+5. Melakukan normalisasi menggunakan `MinMaxScaler`.
+
+```{python preprocessing}
+data[date_col] = pd.to_datetime(data[date_col])
+data = data.sort_values(date_col).reset_index(drop=True)
+
+data["tahun"] = data[date_col].dt.year
+
+print(data.head())
+print(data.tail())
+```
+
+# Visualisasi Awal Kurs per Tahun
+
+```{python visualisasi-kurs-per-tahun, fig.width=10, fig.height=6}
+plt.figure(figsize=(10, 6))
+for tahun in sorted(data["tahun"].unique()):
+    data_tahun = data[data["tahun"] == tahun].sort_values(by=date_col)
+    plt.plot(data_tahun[date_col], data_tahun[target_col], label=str(tahun))
+
+plt.title("Kurs Beli SAR terhadap IDR per Tahun")
+plt.xlabel("Tanggal")
+plt.ylabel("Kurs Beli")
+plt.legend()
+plt.gca().xaxis.set_major_locator(mdates.YearLocator())
+plt.gca().xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
+plt.tight_layout()
+plt.show()
+```
+
+# Deteksi Outlier Menggunakan Boxplot
+
+```{python boxplot, fig.width=8, fig.height=5}
+numerik_kolom = data.select_dtypes(include="number").columns
+
+for col in numerik_kolom:
+    if col != "tahun":
+        plt.figure(figsize=(8, 5))
+        plt.boxplot(data[col].dropna(), vert=False, patch_artist=True)
+        plt.title(f"Boxplot untuk {col}")
+        plt.xlabel(col)
+        plt.tight_layout()
+        plt.show()
+```
+
+# Split Data 80:10:10
+
+Split dilakukan secara berurutan berdasarkan waktu, bukan secara acak. Hal ini penting pada data time series agar tidak terjadi kebocoran informasi dari masa depan ke masa lalu.
+
+```{python split-data}
+def load_and_split_801010(df, target_col="Kurs Beli", date_col="Tanggal"):
+    df = df.copy()
+    if date_col not in df.columns:
+        raise KeyError(f"Kolom '{date_col}' tidak ditemukan.")
+    if target_col not in df.columns:
+        raise KeyError(f"Kolom '{target_col}' tidak ditemukan.")
+
+    df[date_col] = pd.to_datetime(df[date_col])
+    df = df.sort_values(date_col).reset_index(drop=True)
+
+    n = len(df)
+    train_end = int(n * 0.8)
+    val_end = int(n * 0.9)
+
+    train_df = df.iloc[:train_end].copy()
+    val_df = df.iloc[train_end:val_end].copy()
+    test_df = df.iloc[val_end:].copy()
+
+    return train_df, val_df, test_df, df
+
+train_df, val_df, test_df, full_df = load_and_split_801010(data, target_col=target_col, date_col=date_col)
+
+print("Jumlah data latih    :", len(train_df))
+print("Jumlah data validasi :", len(val_df))
+print("Jumlah data uji      :", len(test_df))
+```
+
+```{python visualisasi-split, fig.width=12, fig.height=5}
+def visualize_splits(train_df, val_df, test_df):
+    plt.figure(figsize=(12, 5))
+    plt.plot(train_df[date_col], train_df[target_col], label="Pelatihan", linewidth=1)
+    plt.plot(val_df[date_col], val_df[target_col], label="Validasi", linewidth=1)
+    plt.plot(test_df[date_col], test_df[target_col], label="Uji", linewidth=1)
+
+    plt.axvline(train_df[date_col].iloc[-1], linestyle="--", alpha=0.6)
+    plt.axvline(val_df[date_col].iloc[-1], linestyle="--", alpha=0.6)
+
+    plt.title("Pembagian Data: Pelatihan / Validasi / Uji (80:10:10)")
+    plt.xlabel("Tanggal")
+    plt.ylabel("Kurs Beli")
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
+visualize_splits(train_df, val_df, test_df)
+```
+
+# Normalisasi Data
+
+Normalisasi dilakukan menggunakan `MinMaxScaler` dengan rentang 0 sampai 1. Scaler hanya di-fit pada data latih untuk menghindari data leakage.
+
+```{python normalisasi}
+def scale_target(train_df, val_df, test_df, target_col="Kurs Beli"):
+    scaler = MinMaxScaler(feature_range=(0, 1))
+    y_train_scaled = scaler.fit_transform(train_df[[target_col]])
+    y_val_scaled = scaler.transform(val_df[[target_col]])
+    y_test_scaled = scaler.transform(test_df[[target_col]])
+    return y_train_scaled, y_val_scaled, y_test_scaled, scaler
+
+X_train_scaled, X_val_scaled, X_test_scaled, scaler = scale_target(
+    train_df, val_df, test_df, target_col=target_col
+)
+
+y_train_scaled = X_train_scaled.copy()
+y_val_scaled = X_val_scaled.copy()
+y_test_scaled = X_test_scaled.copy()
+
+print("Min data latih:", scaler.data_min_)
+print("Max data latih:", scaler.data_max_)
+```
+
+# Pembentukan Data Sequence
+
+Model GRU membutuhkan input berbentuk sequence. Oleh karena itu, data kurs diubah menjadi data sliding window dengan parameter `lookback`.
+
+```{python fungsi-lookback}
+def buat_lookback(X_scaled, y_scaled, lookback):
+    X_seq, y_seq = [], []
+    for i in range(lookback, len(X_scaled)):
+        X_seq.append(X_scaled[i-lookback:i])
+        y_seq.append(y_scaled[i])
+    return np.array(X_seq), np.array(y_seq)
+```
+
+# Arsitektur Model GRU
+
+Model yang digunakan terdiri dari tiga layer GRU dan satu fully connected layer. Output model berupa satu nilai prediksi kurs.
+
+```{python model-gru}
+class GRUModel(nn.Module):
+    def __init__(self, n_features, hidden_sizes, n_outputs=1):
+        super(GRUModel, self).__init__()
+        self.gru1 = nn.GRU(n_features, hidden_sizes[0], batch_first=True)
+        self.gru2 = nn.GRU(hidden_sizes[0], hidden_sizes[1], batch_first=True)
+        self.gru3 = nn.GRU(hidden_sizes[1], hidden_sizes[2], batch_first=True)
+        self.fc = nn.Linear(hidden_sizes[2], n_outputs)
+
+    def forward(self, x):
+        out, _ = self.gru1(x)
+        out, _ = self.gru2(out)
+        out, _ = self.gru3(out)
+        out = out[:, -1, :]
+        out = self.fc(out)
+        return out
+```
+
+# Fungsi Evaluasi
+
+Metrik evaluasi yang digunakan:
+
+- **RMSE normalisasi**: RMSE pada data yang masih berada di skala 0 sampai 1.
+- **RMSE denormalisasi**: RMSE pada skala asli kurs.
+- **MAPE denormalisasi**: persentase kesalahan rata-rata pada skala asli kurs.
+
+```{python fungsi-evaluasi}
+def mean_absolute_percentage_error(y_true, y_pred):
+    y_true, y_pred = np.array(y_true), np.array(y_pred)
+    non_zero = y_true != 0
+    if not np.any(non_zero):
+        return np.nan
+    return np.mean(np.abs((y_true[non_zero] - y_pred[non_zero]) / y_true[non_zero])) * 100
+
+
+def evaluasi(loader, model, device, scaler):
+    model.eval()
+    predictions_norm, true_values_norm = [], []
+
+    with torch.no_grad():
+        for xb, yb in loader:
+            xb, yb = xb.to(device), yb.to(device)
+            output = model(xb)
+
+            out_np = output.squeeze().cpu().numpy()
+            yb_np = yb.squeeze().cpu().numpy()
+
+            predictions_norm.extend(np.atleast_1d(out_np).tolist())
+            true_values_norm.extend(np.atleast_1d(yb_np).tolist())
+
+    predictions_norm = np.array(predictions_norm).reshape(-1, 1)
+    true_values_norm = np.array(true_values_norm).reshape(-1, 1)
+
+    rmse_norm = np.sqrt(np.mean((true_values_norm - predictions_norm) ** 2))
+
+    y_pred_denorm = scaler.inverse_transform(predictions_norm).flatten()
+    y_true_denorm = scaler.inverse_transform(true_values_norm).flatten()
+
+    rmse_denorm = np.sqrt(np.mean((y_true_denorm - y_pred_denorm) ** 2))
+    mae_denorm = mean_absolute_error(y_true_denorm, y_pred_denorm)
+    mape_denorm = mean_absolute_percentage_error(y_true_denorm, y_pred_denorm)
+
+    return {
+        "rmse_norm": rmse_norm,
+        "rmse_denorm": rmse_denorm,
+        "mae_denorm": mae_denorm,
+        "mape_denorm": mape_denorm,
+        "y_pred_norm": predictions_norm.flatten(),
+        "y_true_norm": true_values_norm.flatten(),
+        "y_pred_denorm": y_pred_denorm,
+        "y_true_denorm": y_true_denorm,
+    }
+```
+
+# Training Model dan Hyperparameter Tuning
+
+Hyperparameter yang diuji:
+
+- `lookback`: 6 dan 12.
+- `batch_size`: 8, 16, dan 32.
+- `learning_rate`: 0.001.
+- `hidden_sizes`: 256, 128, 64.
+- `max_epochs`: 100.
+- `patience`: 10.
+
+```{python training-function}
+def train_one_run(
+    X_train_scaled, y_train_scaled,
+    X_val_scaled, y_val_scaled,
+    lookback, batch_size, lr,
+    hidden_sizes, max_epochs, patience, run_id
+):
+    X_train_seq, y_train_seq = buat_lookback(X_train_scaled, y_train_scaled.flatten(), lookback)
+    X_val_seq, y_val_seq = buat_lookback(X_val_scaled, y_val_scaled.flatten(), lookback)
+
+    train_ds = TensorDataset(
+        torch.from_numpy(X_train_seq).float(),
+        torch.from_numpy(y_train_seq).float().unsqueeze(1)
+    )
+    val_ds = TensorDataset(
+        torch.from_numpy(X_val_seq).float(),
+        torch.from_numpy(y_val_seq).float().unsqueeze(1)
+    )
+
+    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
+    val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = GRUModel(n_features=X_train_seq.shape[2], hidden_sizes=hidden_sizes).to(device)
+
+    criterion = nn.MSELoss()
+    optimizer = Adam(model.parameters(), lr=lr)
+
+    os.makedirs("models", exist_ok=True)
+    model_path = f"models/model_{run_id}.pth"
+
+    epoch_results = []
+    best_val_mse = float("inf")
+    epochs_no_improve = 0
+
+    for epoch in range(1, max_epochs + 1):
+        start = time.time()
+        model.train()
+        train_loss_accum = 0.0
+
+        for xb, yb in train_loader:
+            xb, yb = xb.to(device), yb.to(device)
+            optimizer.zero_grad()
+            output = model(xb)
+            loss = criterion(output, yb)
+            loss.backward()
+            optimizer.step()
+            train_loss_accum += loss.item() * xb.size(0)
+
+        train_mse = train_loss_accum / len(train_loader.dataset)
+        train_rmse = np.sqrt(train_mse)
+
+        model.eval()
+        val_loss_accum = 0.0
+        with torch.no_grad():
+            for xb, yb in val_loader:
+                xb, yb = xb.to(device), yb.to(device)
+                output = model(xb)
+                val_loss_accum += criterion(output, yb).item() * xb.size(0)
+
+        val_mse = val_loss_accum / len(val_loader.dataset) if len(val_loader.dataset) > 0 else float("inf")
+        val_rmse = np.sqrt(val_mse)
+        duration = time.time() - start
+
+        epoch_results.append({
+            "run_id": run_id,
+            "lookback": lookback,
+            "batch_size": batch_size,
+            "lr": lr,
+            "hidden_sizes": hidden_sizes,
+            "epoch": epoch,
+            "train_loss": train_mse,
+            "val_loss": val_mse,
+            "train_rmse": train_rmse,
+            "val_rmse": val_rmse,
+            "duration_sec": duration,
+        })
+
+        if val_mse < best_val_mse:
+            best_val_mse = val_mse
+            epochs_no_improve = 0
+            torch.save(model.state_dict(), model_path)
+        else:
+            epochs_no_improve += 1
+
+        if epochs_no_improve >= patience:
+            break
+
+    return epoch_results
+```
+
+```{python hyperparameter-tuning, eval=FALSE}
+config = {
+    "lookback_options": [6, 12],
+    "batch_size_options": [8, 16, 32],
+    "lr_options": [0.001],
+    "hidden_sizes": (256, 128, 64),
+    "max_epochs": 100,
+    "patience": 10,
+}
+
+all_results = []
+run_id = 1
+
+for lookback in config["lookback_options"]:
+    for batch_size in config["batch_size_options"]:
+        for lr in config["lr_options"]:
+            print(f"Run {run_id}: lookback={lookback}, batch_size={batch_size}, lr={lr}")
+            results = train_one_run(
+                X_train_scaled=X_train_scaled,
+                y_train_scaled=y_train_scaled,
+                X_val_scaled=X_val_scaled,
+                y_val_scaled=y_val_scaled,
+                lookback=lookback,
+                batch_size=batch_size,
+                lr=lr,
+                hidden_sizes=config["hidden_sizes"],
+                max_epochs=config["max_epochs"],
+                patience=config["patience"],
+                run_id=run_id,
+            )
+            all_results.extend(results)
+            run_id += 1
+
+results_df = pd.DataFrame(all_results)
+results_df.to_csv("results_hyperparameter_tuning.csv", index=False)
+results_df.head()
+```
+
+> Chunk training di atas diberi `eval=FALSE` agar tidak otomatis berjalan saat knit. Ubah menjadi `eval=TRUE` jika ingin menjalankan training langsung dari R Markdown.
+
+# Pemilihan Model Terbaik
+
+Model terbaik dipilih berdasarkan nilai `val_loss` terendah pada data validasi.
+
+```{python pilih-model-terbaik, eval=FALSE}
+best_row = results_df.loc[results_df["val_loss"].idxmin()]
+best_params = best_row.to_dict()
+
+print("Model Terbaik")
+print("Run ID:", best_row["run_id"])
+print("Lookback:", best_row["lookback"])
+print("Batch Size:", best_row["batch_size"])
+print("Learning Rate:", best_row["lr"])
+print("Hidden Sizes:", best_row["hidden_sizes"])
+print("Validation Loss Terbaik:", best_row["val_loss"])
+```
+
+# Evaluasi pada Data Uji
+
+```{python evaluasi-data-uji, eval=FALSE}
+lookback = int(best_row["lookback"])
+batch_size = int(best_row["batch_size"])
+run_id = int(best_row["run_id"])
+hidden_sizes = best_row["hidden_sizes"]
+
+X_test_seq, y_test_seq = buat_lookback(X_test_scaled, y_test_scaled.flatten(), lookback)
+
+test_ds = TensorDataset(
+    torch.from_numpy(X_test_seq).float(),
+    torch.from_numpy(y_test_seq).float().unsqueeze(1)
+)
+test_loader = DataLoader(test_ds, batch_size=batch_size, shuffle=False)
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model = GRUModel(n_features=X_test_seq.shape[2], hidden_sizes=hidden_sizes).to(device)
+model.load_state_dict(torch.load(f"models/model_{run_id}.pth", map_location=device))
+
+metrics = evaluasi(test_loader, model, device, scaler)
+
+print("RMSE Normalisasi     :", metrics["rmse_norm"])
+print("RMSE Denormalisasi   :", metrics["rmse_denorm"])
+print("MAE Denormalisasi    :", metrics["mae_denorm"])
+print("MAPE Denormalisasi   :", metrics["mape_denorm"], "%")
+```
+
+# Hasil Prediksi
+
+```{python hasil-prediksi, eval=FALSE}
+total_len = len(full_df)
+test_start_idx = int(total_len * 0.9)
+tanggal_pred = full_df[date_col].iloc[test_start_idx + lookback:].reset_index(drop=True)
+
+pred_df = pd.DataFrame({
+    "Tanggal": tanggal_pred,
+    "Kurs_Asli_Scaled": metrics["y_true_norm"],
+    "Kurs_Prediksi_Scaled": metrics["y_pred_norm"],
+    "Kurs_Asli": metrics["y_true_denorm"],
+    "Kurs_Prediksi": metrics["y_pred_denorm"],
+})
+
+pred_df.to_csv("perbandingan_prediksi_kurs_beli.csv", index=False)
+pred_df.head()
+```
+
+# Visualisasi Aktual vs Prediksi
+
+```{python visualisasi-prediksi-scaled, fig.width=12, fig.height=5, eval=FALSE}
+plt.figure(figsize=(12, 5))
+plt.plot(pred_df["Tanggal"], pred_df["Kurs_Asli_Scaled"], label="Kurs Aktual (scaled)")
+plt.plot(pred_df["Tanggal"], pred_df["Kurs_Prediksi_Scaled"], label="Kurs Prediksi (scaled)")
+plt.title("Perbandingan Kurs Aktual vs Prediksi (Skala Normalisasi)")
+plt.xlabel("Tanggal")
+plt.ylabel("Kurs Beli (scaled)")
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+```
+
+```{python visualisasi-prediksi-denormalisasi, fig.width=12, fig.height=5, eval=FALSE}
+plt.figure(figsize=(12, 5))
+plt.plot(pred_df["Tanggal"], pred_df["Kurs_Asli"], label="Kurs Aktual")
+plt.plot(pred_df["Tanggal"], pred_df["Kurs_Prediksi"], label="Kurs Prediksi")
+plt.title("Perbandingan Kurs Aktual vs Prediksi (Denormalisasi)")
+plt.xlabel("Tanggal")
+plt.ylabel("Kurs Beli SAR/IDR")
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+```
+
+# Visualisasi Loss Training dan Validasi
+
+```{python visualisasi-loss, fig.width=10, fig.height=4, eval=FALSE}
+for run_id in sorted(results_df["run_id"].unique()):
+    run_data = results_df[results_df["run_id"] == run_id]
+
+    plt.figure(figsize=(10, 4))
+    plt.plot(run_data["epoch"], run_data["train_loss"], label="Train Loss (MSE)")
+    plt.plot(run_data["epoch"], run_data["val_loss"], label="Validation Loss (MSE)")
+
+    min_val_loss_row = run_data.loc[run_data["val_loss"].idxmin()]
+    plt.scatter(min_val_loss_row["epoch"], min_val_loss_row["val_loss"], label="Best Val Loss")
+
+    plt.title(f"Loss Curve - Run {run_id}")
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss (MSE)")
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+```
+
+# Kesimpulan
+
+Berdasarkan tahapan yang dilakukan, model GRU dapat digunakan untuk memprediksi nilai tukar SAR terhadap IDR dengan memanfaatkan pola historis dari data kurs beli. Proses utama dalam project ini meliputi preprocessing data, normalisasi, pembentukan sequence time series, training model GRU, hyperparameter tuning, serta evaluasi menggunakan RMSE, MAE, dan MAPE.
+
+Hasil akhir dari model dapat dibandingkan melalui grafik antara nilai kurs aktual dan nilai kurs prediksi. Semakin kecil nilai RMSE, MAE, dan MAPE, maka semakin baik performa model dalam mendekati nilai aktual.
+
+# Saran Pengembangan
+
+Beberapa pengembangan yang dapat dilakukan:
+
+1. Menambahkan variabel eksternal seperti suku bunga, inflasi, harga minyak, atau indeks ekonomi.
+2. Membandingkan performa GRU dengan LSTM, RNN, ARIMA, atau Prophet.
+3. Menggunakan periode data yang lebih panjang.
+4. Menambahkan evaluasi rolling forecast untuk simulasi prediksi yang lebih realistis.
+5. Melakukan deployment sederhana menggunakan Streamlit atau dashboard interaktif.
+
+# Referensi
+
+- Bank Indonesia sebagai sumber data kurs transaksi SAR terhadap IDR.
+- Dokumentasi PyTorch untuk implementasi model GRU.
+- Dokumentasi Scikit-learn untuk normalisasi dan metrik evaluasi.
