@@ -13,6 +13,9 @@ Model yang digunakan adalah **GRU (Gated Recurrent Unit)**, yaitu salah satu ars
 ## 📂Dataset
 
 Dataset yang digunakan merupakan data kurs transaksi SAR terhadap IDR yang bersumber dari **Bank Indonesia**.
+Link dataset:
+
+https://www.bi.go.id/id/statistik/informasi-kurs/transaksi-bi/default.aspx
 
 Informasi dataset:
 
