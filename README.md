@@ -1,4 +1,4 @@
-# Prediksi Nilai Tukar Mata Uang SAR terhadap IDR Menggunakan GRU
+# Prediksi Nilai Tukar Mata Uang SAR terhadap IDR Menggunakan GRU📈
 
 Project ini bertujuan untuk memprediksi nilai tukar mata uang Saudi Riyal (SAR) terhadap Rupiah Indonesia (IDR) menggunakan metode **Gated Recurrent Unit (GRU)**. Model ini digunakan untuk mempelajari pola historis kurs dan menghasilkan prediksi nilai kurs berdasarkan data sebelumnya.
 
