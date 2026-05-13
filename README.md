@@ -14,13 +14,10 @@ Model yang digunakan adalah **GRU (Gated Recurrent Unit)**, yaitu salah satu ars
 
 Dataset yang digunakan merupakan data kurs transaksi SAR terhadap IDR yang bersumber dari **Bank Indonesia**.
 
-Link dataset:
-
-https://www.bi.go.id/id/statistik/informasi-kurs/transaksi-bi/default.aspx
-
 Informasi dataset:
 
 - Sumber data: Bank Indonesia
+- Link dataset: https://www.bi.go.id/id/statistik/informasi-kurs/transaksi-bi/default.aspx
 - Mata uang: Saudi Riyal (SAR)
 - Target prediksi: Kurs Beli SAR terhadap IDR
 - Periode data: Januari 2022 sampai Juni 2025
