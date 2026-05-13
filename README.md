@@ -4,13 +4,13 @@ Project ini bertujuan untuk memprediksi nilai tukar mata uang Saudi Riyal (SAR) 
 
 Dataset yang digunakan berasal dari **Bank Indonesia**, dengan fokus pada data **Kurs Beli SAR terhadap IDR**.
 
-## Deskripsi Project
+## 📌Deskripsi Project
 
 Nilai tukar mata uang merupakan salah satu indikator ekonomi yang bersifat fluktuatif dan berubah dari waktu ke waktu. Dalam project ini, data historis kurs SAR terhadap IDR digunakan sebagai data time series untuk membangun model prediksi berbasis deep learning.
 
 Model yang digunakan adalah **GRU (Gated Recurrent Unit)**, yaitu salah satu arsitektur Recurrent Neural Network (RNN) yang cocok digunakan untuk pemodelan data berurutan seperti data kurs, harga saham, cuaca, dan data time series lainnya.
 
-## Dataset
+## 📂Dataset
 
 Dataset yang digunakan merupakan data kurs transaksi SAR terhadap IDR yang bersumber dari **Bank Indonesia**.
 
@@ -25,7 +25,7 @@ Informasi dataset:
   - `Tanggal`
   - `Kurs Beli`
 
-## Metode
+## ⚙️Metode
 
 Tahapan yang dilakukan dalam project ini meliputi:
 
