@@ -53,11 +53,11 @@ Data dibagi menjadi tiga subset:
 | Validation | 83 |
 | Testing | 84 |
 
-Pembagian data dilakukan secara kronologis agar sesuai dengan karakteristik data time series.
+Pembagian data dilakukan berdasarkan urutan waktu agar sesuai dengan karakteristik data time series.
 
 ## Arsitektur Model
 
-Model GRU yang digunakan terdiri dari beberapa layer GRU dan satu layer linear sebagai output.
+Model GRU yang digunakan terdiri dari 3 layers GRU dan satu layer linear sebagai output.
 
 Konfigurasi model terbaik:
 
@@ -89,7 +89,6 @@ Model terbaik diperoleh pada:
 | Run ID | 002 |
 | Validation Loss terbaik | 0.000599 |
 | Epoch terbaik | 43 |
-| Validation RMSE | 0.024482 |
 
 Hasil evaluasi pada data uji:
 
@@ -97,9 +96,8 @@ Hasil evaluasi pada data uji:
 |---|---:|
 | RMSE skala normalisasi | 0.030005 |
 | RMSE denormalisasi | 17.478765 |
-| MAPE denormalisasi | 0.2970% |
 
-Berdasarkan nilai MAPE yang rendah, model GRU mampu menghasilkan prediksi kurs SAR terhadap IDR dengan tingkat kesalahan relatif kecil pada data uji.
+Berdasarkan nilai RMSE yang rendah, model GRU mampu menghasilkan prediksi kurs SAR terhadap IDR dengan tingkat kesalahan relatif kecil pada data uji.
 
 ## Contoh Hasil Prediksi
 
@@ -128,7 +126,6 @@ Contoh hasil akhir prediksi:
 Project ini menggunakan beberapa tools dan library berikut:
 
 - Python
-- Jupyter Notebook
 - Pandas
 - NumPy
 - Matplotlib
@@ -151,7 +148,3 @@ File notebook tersebut berisi seluruh proses mulai dari preprocessing, normalisa
 Project ini menunjukkan penerapan model GRU untuk prediksi nilai tukar mata uang SAR terhadap IDR. Berdasarkan hasil evaluasi, model mampu menghasilkan prediksi yang cukup baik dengan nilai MAPE sebesar **0.2970%** pada data uji.
 
 Model ini dapat dikembangkan lebih lanjut dengan menambahkan variabel eksternal seperti inflasi, suku bunga, harga minyak dunia, atau indikator ekonomi lainnya agar hasil prediksi menjadi lebih komprehensif.
-
-## Catatan
-
-Dataset berasal dari Bank Indonesia dan digunakan untuk keperluan pembelajaran serta penelitian akademik.
