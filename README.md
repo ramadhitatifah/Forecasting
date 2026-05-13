@@ -144,28 +144,6 @@ Prediksi Nilai Tukar Mata Uang SAR–IDR.ipynb
 
 File notebook tersebut berisi seluruh proses mulai dari preprocessing, normalisasi data, pembuatan model GRU, training, evaluasi, hingga visualisasi hasil prediksi.
 
-## Cara Menjalankan Project
-
-1. Clone repository ini:
-
-```bash
-git clone https://github.com/username/nama-repository.git
-cd nama-repository
-```
-
-2. Install library yang dibutuhkan:
-
-```bash
-pip install pandas numpy matplotlib scikit-learn torch openpyxl
-```
-
-3. Jalankan notebook:
-
-```bash
-jupyter notebook "Prediksi Nilai Tukar Mata Uang SAR–IDR.ipynb"
-```
-
-4. Pastikan file dataset dari Bank Indonesia tersedia pada path yang sesuai dengan notebook.
 
 ## Kesimpulan
 
