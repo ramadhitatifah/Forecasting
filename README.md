@@ -101,6 +101,11 @@ Hasil evaluasi pada data uji:
 
 Berdasarkan nilai RMSE yang rendah, model GRU mampu menghasilkan prediksi kurs SAR terhadap IDR dengan tingkat kesalahan relatif kecil pada data uji.
 
+## 📊 Visualisasi Hasil
+
+![image alt](https://github.com/ramadhitatifah/Currency-Rate-Prediction/blob/main/Grafik%20Perbandingan%20Kurs%20Aktual%20vs%20Prediksi.png?raw=true)
+
+
 ## Contoh Hasil Prediksi
 
 Beberapa contoh perbandingan nilai aktual dan hasil prediksi:
@@ -123,9 +128,6 @@ Contoh hasil akhir prediksi:
 | 2025-06-26 | 4322.12 | 4329.51 |
 | 2025-06-30 | 4306.58 | 4324.70 |
 
-## 📊 Visualisasi Hasil
-
-![alt text](path/to/[image.png](https://github.com/ramadhitatifah/Currency-Rate-Prediction/blob/main/Grafik%20Perbandingan%20Kurs%20Aktual%20vs%20Prediksi.png))
 
 ## 🛠️Tools dan Library
 
@@ -151,6 +153,6 @@ File notebook tersebut berisi seluruh proses mulai dari preprocessing, normalisa
 
 ## ✨Kesimpulan
 
-Project ini menunjukkan penerapan model GRU untuk prediksi nilai tukar mata uang SAR terhadap IDR. Berdasarkan hasil evaluasi, model mampu menghasilkan prediksi yang cukup baik dengan nilai MAPE sebesar **0.2970%** pada data uji.
+Project ini menunjukkan penerapan model GRU untuk prediksi nilai tukar mata uang SAR terhadap IDR. Berdasarkan hasil evaluasi, model mampu menghasilkan prediksi yang cukup baik dengan nilai RMSE dalam skala normalisasi sebesar **0.030005** pada data uji.
 
 Model ini dapat dikembangkan lebih lanjut dengan menambahkan variabel eksternal seperti inflasi, suku bunga, harga minyak dunia, atau indikator ekonomi lainnya agar hasil prediksi menjadi lebih komprehensif.
