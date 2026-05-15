@@ -125,7 +125,7 @@ Contoh hasil akhir prediksi:
 
 ## 📊 Visualisasi Hasil
 
-![alt text](https://github.com/ramadhitatifah/Currency-Rate-Prediction/commit/fc13f5e512e8f8f5c7a77a331759505a2edf4be5?raw=true)
+![alt text](path/to/[image.png](https://github.com/ramadhitatifah/Currency-Rate-Prediction/blob/main/Grafik%20Perbandingan%20Kurs%20Aktual%20vs%20Prediksi.png))
 
 ## 🛠️Tools dan Library
 
